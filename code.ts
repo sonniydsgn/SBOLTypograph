@@ -947,7 +947,7 @@ function findTextNodes(): TextNode[] {
 }
 
 // Применяем к текстовым узлам Типограф
-async function applyTypographToTextNodes() {
+async function applyTypographToTextNodes(preserveStyles: boolean = true) {
   const textNodes = findTextNodes();
 
   await Promise.all(textNodes.map(async (node) => {
@@ -966,7 +966,11 @@ async function applyTypographToTextNodes() {
         node.getRangeAllFontNames(0, originalText.length).map(figma.loadFontAsync)
       );
 
-      await applyTextChangesPreservingStyles(node, originalText, typographResult);
+      if (preserveStyles) {
+        await applyTextChangesPreservingStyles(node, originalText, typographResult);
+      } else {
+          node.characters = typographResult;
+      }
 
     } catch (error) {
       console.error("Не удалось обработать узел:", error);
@@ -1004,17 +1008,30 @@ type DiffOp =
   | { type: 'delete'; pos: number; count: number }
   | { type: 'insert'; pos: number; text: string };
 
-/**
- * Вычисляет минимальный набор операций для преобразования oldText в newText
- * на основе LCS
- */
 function computeDiff(oldText: string, newText: string): DiffOp[] {
   const oldLen = oldText.length;
   const newLen = newText.length;
 
-  // LCS через DP
-  const dp: number[][] = Array.from({ length: oldLen + 1 }, () =>
-    new Array(newLen + 1).fill(0)
+  // Строим только две строки вместо всей матрицы O(n*m) → O(m)
+  let prev = new Array(newLen + 1).fill(0);
+  let curr = new Array(newLen + 1).fill(0);
+
+  for (let i = 1; i <= oldLen; i++) {
+    for (let j = 1; j <= newLen; j++) {
+      curr[j] = oldText[i - 1] === newText[j - 1]
+        ? prev[j - 1] + 1
+        : Math.max(prev[j], curr[j - 1]);
+    }
+    [prev, curr] = [curr, prev];
+    curr.fill(0);
+  }
+
+  // Для обратного прохода нужна вся матрица — храним только нужные строки.
+  // Перестраиваем матрицу, но теперь только для traceback.
+  // Используем экономный вариант: храним всю матрицу но Int16Array вместо number[][]
+  const dp: Int16Array[] = Array.from(
+    { length: oldLen + 1 },
+    () => new Int16Array(newLen + 1)
   );
   for (let i = 1; i <= oldLen; i++) {
     for (let j = 1; j <= newLen; j++) {
@@ -1024,7 +1041,7 @@ function computeDiff(oldText: string, newText: string): DiffOp[] {
     }
   }
 
-  // Восстанавливаем список операций через обратный проход
+  // Обратный проход
   const ops: DiffOp[] = [];
   let i = oldLen, j = newLen;
 
@@ -1040,25 +1057,22 @@ function computeDiff(oldText: string, newText: string): DiffOp[] {
     }
   }
 
-  // Операции восстановлены в обратном порядке — разворачиваем
-  // и схлопываем соседние однотипные операции в одну
   return mergeOps(ops.reverse());
 }
 
-/**
- * Схлопывает соседние однотипные операции:
- * [{insert, pos:5, 'а'}, {insert, pos:5, 'б'}] → [{insert, pos:5, 'аб'}]
- * [{delete, pos:3, 1}, {delete, pos:3, 1}] → [{delete, pos:3, 2}]
- */
 function mergeOps(ops: DiffOp[]): DiffOp[] {
   const merged: DiffOp[] = [];
 
   for (const op of ops) {
     const last = merged[merged.length - 1];
 
-    if (last && last.type === 'insert' && op.type === 'insert' && last.pos === op.pos) {
+    if (last && last.type === 'insert' && op.type === 'insert'
+      && last.pos + last.text.length === op.pos  // ← было last.pos === op.pos
+    ) {
       last.text += op.text;
-    } else if (last && last.type === 'delete' && op.type === 'delete' && last.pos + last.count === op.pos) {
+    } else if (last && last.type === 'delete' && op.type === 'delete'
+      && last.pos + last.count === op.pos
+    ) {
       last.count += op.count;
     } else {
       merged.push({ ...op });
@@ -1262,12 +1276,12 @@ function workReport() {
 }
 
 // Запуск плагина
-async function runPlugin() {
+async function runPlugin(preserveStyles: boolean = true) {
   // Заполняем словарь Ёфикатора
   createYoDict();
 
   // Поиск текстовых узлов и применения к ним Типографа
-  await applyTypographToTextNodes();
+  await applyTypographToTextNodes(preserveStyles);
 
   // Отчёт о работе
   workReport();
@@ -1291,6 +1305,9 @@ async function saveSettings(settingsValues: { [key: string]: boolean }) {
   switch (figma.command) {
     case "run": // Если в меню выбрано "SBOL Typograph"
       await runPlugin();
+      break;
+    case "fast-run": // Если в меню выбрано "SBOL Typograph"
+      await runPlugin(false);
       break;
     case "settings": // Если в меню выбрано "⚙️ Настройки"
       runSettings();

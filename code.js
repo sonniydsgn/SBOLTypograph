@@ -857,7 +857,7 @@ function findTextNodes() {
 }
 // Применяем к текстовым узлам Типограф
 function applyTypographToTextNodes() {
-    return __awaiter(this, void 0, void 0, function* () {
+    return __awaiter(this, arguments, void 0, function* (preserveStyles = true) {
         const textNodes = findTextNodes();
         yield Promise.all(textNodes.map((node) => __awaiter(this, void 0, void 0, function* () {
             if (node.hasMissingFont) {
@@ -870,7 +870,12 @@ function applyTypographToTextNodes() {
                 return;
             try {
                 yield Promise.all(node.getRangeAllFontNames(0, originalText.length).map(figma.loadFontAsync));
-                yield applyTextChangesPreservingStyles(node, originalText, typographResult);
+                if (preserveStyles) {
+                    yield applyTextChangesPreservingStyles(node, originalText, typographResult);
+                }
+                else {
+                    node.characters = typographResult;
+                }
             }
             catch (error) {
                 console.error("Не удалось обработать узел:", error);
@@ -901,15 +906,25 @@ function applyTextChangesPreservingStyles(node, oldText, newText) {
         }
     });
 }
-/**
- * Вычисляет минимальный набор операций для преобразования oldText в newText
- * на основе LCS
- */
 function computeDiff(oldText, newText) {
     const oldLen = oldText.length;
     const newLen = newText.length;
-    // LCS через DP
-    const dp = Array.from({ length: oldLen + 1 }, () => new Array(newLen + 1).fill(0));
+    // Строим только две строки вместо всей матрицы O(n*m) → O(m)
+    let prev = new Array(newLen + 1).fill(0);
+    let curr = new Array(newLen + 1).fill(0);
+    for (let i = 1; i <= oldLen; i++) {
+        for (let j = 1; j <= newLen; j++) {
+            curr[j] = oldText[i - 1] === newText[j - 1]
+                ? prev[j - 1] + 1
+                : Math.max(prev[j], curr[j - 1]);
+        }
+        [prev, curr] = [curr, prev];
+        curr.fill(0);
+    }
+    // Для обратного прохода нужна вся матрица — храним только нужные строки.
+    // Перестраиваем матрицу, но теперь только для traceback.
+    // Используем экономный вариант: храним всю матрицу но Int16Array вместо number[][]
+    const dp = Array.from({ length: oldLen + 1 }, () => new Int16Array(newLen + 1));
     for (let i = 1; i <= oldLen; i++) {
         for (let j = 1; j <= newLen; j++) {
             dp[i][j] = oldText[i - 1] === newText[j - 1]
@@ -917,7 +932,7 @@ function computeDiff(oldText, newText) {
                 : Math.max(dp[i - 1][j], dp[i][j - 1]);
         }
     }
-    // Восстанавливаем список операций через обратный проход
+    // Обратный проход
     const ops = [];
     let i = oldLen, j = newLen;
     while (i > 0 || j > 0) {
@@ -934,23 +949,19 @@ function computeDiff(oldText, newText) {
             i--;
         }
     }
-    // Операции восстановлены в обратном порядке — разворачиваем
-    // и схлопываем соседние однотипные операции в одну
     return mergeOps(ops.reverse());
 }
-/**
- * Схлопывает соседние однотипные операции:
- * [{insert, pos:5, 'а'}, {insert, pos:5, 'б'}] → [{insert, pos:5, 'аб'}]
- * [{delete, pos:3, 1}, {delete, pos:3, 1}] → [{delete, pos:3, 2}]
- */
 function mergeOps(ops) {
     const merged = [];
     for (const op of ops) {
         const last = merged[merged.length - 1];
-        if (last && last.type === 'insert' && op.type === 'insert' && last.pos === op.pos) {
+        if (last && last.type === 'insert' && op.type === 'insert'
+            && last.pos + last.text.length === op.pos // ← было last.pos === op.pos
+        ) {
             last.text += op.text;
         }
-        else if (last && last.type === 'delete' && op.type === 'delete' && last.pos + last.count === op.pos) {
+        else if (last && last.type === 'delete' && op.type === 'delete'
+            && last.pos + last.count === op.pos) {
             last.count += op.count;
         }
         else {
@@ -1137,11 +1148,11 @@ function workReport() {
 }
 // Запуск плагина
 function runPlugin() {
-    return __awaiter(this, void 0, void 0, function* () {
+    return __awaiter(this, arguments, void 0, function* (preserveStyles = true) {
         // Заполняем словарь Ёфикатора
         createYoDict();
         // Поиск текстовых узлов и применения к ним Типографа
-        yield applyTypographToTextNodes();
+        yield applyTypographToTextNodes(preserveStyles);
         // Отчёт о работе
         workReport();
     });
@@ -1166,6 +1177,9 @@ function saveSettings(settingsValues) {
     switch (figma.command) {
         case "run": // Если в меню выбрано "SBOL Typograph"
             yield runPlugin();
+            break;
+        case "fast-run": // Если в меню выбрано "SBOL Typograph"
+            yield runPlugin(false);
             break;
         case "settings": // Если в меню выбрано "⚙️ Настройки"
             runSettings();
