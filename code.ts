@@ -948,7 +948,7 @@ function findTextNodes(): TextNode[] {
 }
 
 // Применяем к текстовым узлам Типограф
-async function applyTypographToTextNodes() {
+async function applyTypographToTextNodes(preserveStyles: boolean = true) {
   const textNodes = findTextNodes();
 
   await Promise.all(textNodes.map(async (node) => {
@@ -1147,12 +1147,12 @@ function workReport() {
 }
 
 // Запуск плагина
-async function runPlugin() {
+async function runPlugin(preserveStyles: boolean = true) {
   // Заполняем словарь Ёфикатора
   createYoDict();
 
   // Поиск текстовых узлов и применения к ним Типографа
-  await applyTypographToTextNodes();
+  await applyTypographToTextNodes(preserveStyles);
 
   // Отчёт о работе
   workReport();
@@ -1176,6 +1176,9 @@ async function saveSettings(settingsValues: { [key: string]: boolean }) {
   switch (figma.command) {
     case "run": // Если в меню выбрано "SBOL Typograph"
       await runPlugin();
+      break;
+    case "fast-run": // Если в меню выбрано "SBOL Typograph"
+      await runPlugin(false);
       break;
     case "settings": // Если в меню выбрано "⚙️ Настройки"
       runSettings();
