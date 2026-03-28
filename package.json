@@ -1,7 +1,7 @@
 {
-  "name": "SBOL-Typograph",
+  "name": "sbol-typograph-remastered",
   "version": "1.0.0",
-  "description": "Correction and formatting of Cyrillic text",
+  "description": "Correction and formatting of Cyrillic text. Remastered edition",
   "main": "code.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -9,7 +9,7 @@
     "lint:fix": "eslint --ext .ts,.tsx --ignore-pattern node_modules --fix .",
     "watch": "npm run build -- --watch"
   },
-  "author": "Mikhail Danilov",
+  "author": "Mikhail Danilov & Alexey Kalinin",
   "license": "",
   "devDependencies": {
     "@figma/eslint-plugin-figma-plugins": "*",
