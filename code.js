@@ -290,7 +290,7 @@ function applyTypograph(stringToParse) {
         // +7 вместо 8
         // Если трёхзначный код города, формат номера +7 111 111-11-11
         // Если четырёхзначный код города, формат номера +7 1111 11-11-11
-        // Ищем: 
+        // Ищем:
         //    ( начало строки или [ один из символов: пробел, неразрывный пробел, разные кавычки, левая квадратная скобка, левая круглая скобка ] ) p1
         //    (
         //      (возможно ( или ( [ один из символов: пробел, тире ]) p3
@@ -359,7 +359,7 @@ function applyTypograph(stringToParse) {
                     _counterPhoneNumber++;
             }
             else {
-                // Если в настройках ВЫКЛЮЧЕНО Изменять телефон, найденный номер не меняем        
+                // Если в настройках ВЫКЛЮЧЕНО Изменять телефон, найденный номер не меняем
                 changedPhoneNumber = p2;
             }
             // Вокруг найденного телефона добавляем спецтэг <Unchangeable> чтобы обработчик тире не изменял телефон. Потом его уберём
@@ -435,10 +435,10 @@ function applyTypograph(stringToParse) {
         // Что обрабатываем: буква - буква, буква - цифра, цифра - буква
         // Для диапазонов чисел используем короткое (среднее) тире «–» без пробелов: 2002–2009, XI–XII
         // Что обрабатываем: цифра, латинская цифра – цифра, латинская цифра
-        // Ищем: 
+        // Ищем:
         //    ( <Unchangeable>.*</Unchangeable> ) p1
-        //    или 
-        //    (?: 
+        //    или
+        //    (?:
         //      (( [ цифру, латинскую цифру ] ) p3 или ( [ букву ] ) p4 ) p2
         //      ( [ возможный пробел ] )? p5
         //      ( дефис ) p6
@@ -639,7 +639,7 @@ function applyTypograph(stringToParse) {
     function misc() {
         // СберБанк слитно, СберБанк, ПАО Сбербанк
         stringToParse = stringToParse.replace(/(ПАО([\u0020\u00A0]))?(Сбер([\u0020\u00A0])?банк)/gmi, function (match, p1, p2, p3, p4) {
-            // Есть пробел между Сбер Банк, удалим его 
+            // Есть пробел между Сбер Банк, удалим его
             if (p4 !== undefined)
                 _counterDeleteSpaces++;
             if (p1 !== undefined) {
@@ -860,28 +860,233 @@ function applyTypographToTextNodes() {
     return __awaiter(this, void 0, void 0, function* () {
         const textNodes = findTextNodes();
         yield Promise.all(textNodes.map((node) => __awaiter(this, void 0, void 0, function* () {
-            // Если в узле нет отсутствующих шрифтов
-            if (!node.hasMissingFont) {
-                // Применяем к текстовому узлу Типограф
-                const typographResult = applyTypograph(node.characters);
-                // Если Типограф что-то исправил
-                if (node.characters !== typographResult) {
-                    try {
-                        // Загружаем шрифты текстового узла
-                        yield Promise.all(node.getRangeAllFontNames(0, node.characters.length)
-                            .map(figma.loadFontAsync));
-                        node.characters = typographResult;
-                    }
-                    catch (error) {
-                        console.error("Не удалось загрузить шрифты:", error);
-                    }
-                }
-            }
-            else {
+            if (node.hasMissingFont) {
                 _counterMissingFont++;
+                return;
+            }
+            const originalText = node.characters;
+            const typographResult = applyTypograph(originalText);
+            if (originalText === typographResult)
+                return;
+            try {
+                yield Promise.all(node.getRangeAllFontNames(0, originalText.length).map(figma.loadFontAsync));
+                yield applyTextChangesPreservingStyles(node, originalText, typographResult);
+            }
+            catch (error) {
+                console.error("Не удалось обработать узел:", error);
             }
         })));
     });
+}
+/**
+ * Применяет изменения текста через insertCharacters/deleteCharacters
+ * вместо node.characters = ... чтобы сохранить стили
+ */
+function applyTextChangesPreservingStyles(node, oldText, newText) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // Вычисляем diff — список операций DELETE и INSERT
+        const ops = computeDiff(oldText, newText);
+        // Применяем операции с конца, чтобы не сбивать позиции
+        let offset = 0;
+        for (const op of ops) {
+            if (op.type === 'delete') {
+                node.deleteCharacters(op.pos + offset, op.pos + offset + op.count);
+                offset -= op.count;
+            }
+            else if (op.type === 'insert') {
+                // Берём стиль из соседнего символа справа (или слева если вставка в конец)
+                node.insertCharacters(op.pos + offset, op.text, 'BEFORE');
+                offset += op.text.length;
+            }
+        }
+    });
+}
+/**
+ * Вычисляет минимальный набор операций для преобразования oldText в newText
+ * на основе LCS
+ */
+function computeDiff(oldText, newText) {
+    const oldLen = oldText.length;
+    const newLen = newText.length;
+    // LCS через DP
+    const dp = Array.from({ length: oldLen + 1 }, () => new Array(newLen + 1).fill(0));
+    for (let i = 1; i <= oldLen; i++) {
+        for (let j = 1; j <= newLen; j++) {
+            dp[i][j] = oldText[i - 1] === newText[j - 1]
+                ? dp[i - 1][j - 1] + 1
+                : Math.max(dp[i - 1][j], dp[i][j - 1]);
+        }
+    }
+    // Восстанавливаем список операций через обратный проход
+    const ops = [];
+    let i = oldLen, j = newLen;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && oldText[i - 1] === newText[j - 1]) {
+            i--;
+            j--;
+        }
+        else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            ops.push({ type: 'insert', pos: i, text: newText[j - 1] });
+            j--;
+        }
+        else {
+            ops.push({ type: 'delete', pos: i - 1, count: 1 });
+            i--;
+        }
+    }
+    // Операции восстановлены в обратном порядке — разворачиваем
+    // и схлопываем соседние однотипные операции в одну
+    return mergeOps(ops.reverse());
+}
+/**
+ * Схлопывает соседние однотипные операции:
+ * [{insert, pos:5, 'а'}, {insert, pos:5, 'б'}] → [{insert, pos:5, 'аб'}]
+ * [{delete, pos:3, 1}, {delete, pos:3, 1}] → [{delete, pos:3, 2}]
+ */
+function mergeOps(ops) {
+    const merged = [];
+    for (const op of ops) {
+        const last = merged[merged.length - 1];
+        if (last && last.type === 'insert' && op.type === 'insert' && last.pos === op.pos) {
+            last.text += op.text;
+        }
+        else if (last && last.type === 'delete' && op.type === 'delete' && last.pos + last.count === op.pos) {
+            last.count += op.count;
+        }
+        else {
+            merged.push(Object.assign({}, op));
+        }
+    }
+    return merged;
+}
+/**
+ * Строит массив [charIndex] => value по сегментам.
+ * Позволяет за O(1) узнать значение свойства в любой позиции старого текста.
+ */
+function getTextStyleIdAtPosition(textStyleSegments, charIndex) {
+    for (const seg of textStyleSegments) {
+        if (charIndex >= seg.start && charIndex < seg.end) {
+            return seg.textStyleId;
+        }
+    }
+    return '';
+}
+/**
+ * Строит маппинг позиций через LCS (diff).
+ * positionMap[oldIndex] = newIndex
+ * positionMap[oldText.length] = newText.length (граница конца)
+ */
+function buildPositionMap(oldText, newText) {
+    const oldLen = oldText.length;
+    const newLen = newText.length;
+    // Вычисляем LCS через динамическое программирование
+    // dp[i][j] = длина LCS для oldText[0..i-1] и newText[0..j-1]
+    const dp = Array.from({ length: oldLen + 1 }, () => new Array(newLen + 1).fill(0));
+    for (let i = 1; i <= oldLen; i++) {
+        for (let j = 1; j <= newLen; j++) {
+            if (oldText[i - 1] === newText[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            }
+            else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+    // Обратный проход — восстанавливаем маппинг позиций
+    const positionMap = new Array(oldLen + 1).fill(-1);
+    let i = oldLen;
+    let j = newLen;
+    while (i > 0 && j > 0) {
+        if (oldText[i - 1] === newText[j - 1]) {
+            // Символ совпал — это якорь, позиция точная
+            positionMap[i] = j;
+            i--;
+            j--;
+        }
+        else if (dp[i - 1][j] >= dp[i][j - 1]) {
+            // Символ удалён из oldText
+            i--;
+        }
+        else {
+            // Символ вставлен в newText
+            j--;
+        }
+    }
+    // Граница конца строки
+    positionMap[oldLen] = newLen;
+    // Заполняем пропуски (замененные символы — не вошли в LCS)
+    // Интерполируем между известными якорями
+    interpolateGaps(positionMap, newLen);
+    return positionMap;
+}
+/**
+ * Заполняет позиции -1 линейной интерполяцией между якорями.
+ *
+ * Например: [-1, -1, 5, -1, -1, 8]
+ * Между якорями 5 и 8 равномерно распределяем: [3, 4, 5, 6, 7, 8]
+ */
+function interpolateGaps(map, newLen) {
+    const len = map.length;
+    // Находим первый якорь слева и распространяем влево
+    let firstKnown = -1;
+    for (let i = 0; i < len; i++) {
+        if (map[i] !== -1) {
+            firstKnown = i;
+            break;
+        }
+    }
+    // Если якорей нет вообще — равномерно распределяем
+    if (firstKnown === -1) {
+        for (let i = 0; i < len; i++) {
+            map[i] = Math.round((i / (len - 1)) * newLen);
+        }
+        return;
+    }
+    // Заполняем до первого якоря
+    for (let i = 0; i < firstKnown; i++) {
+        map[i] = Math.max(0, map[firstKnown] - (firstKnown - i));
+    }
+    // Интерполируем между якорями
+    let prevAnchorIdx = firstKnown;
+    for (let i = firstKnown + 1; i < len; i++) {
+        if (map[i] !== -1) {
+            // Нашли следующий якорь — заполняем промежуток
+            const gap = i - prevAnchorIdx;
+            const startVal = map[prevAnchorIdx];
+            const endVal = map[i];
+            for (let k = 1; k < gap; k++) {
+                map[prevAnchorIdx + k] = Math.round(startVal + (endVal - startVal) * (k / gap));
+            }
+            prevAnchorIdx = i;
+        }
+    }
+    // Заполняем после последнего якоря
+    for (let i = prevAnchorIdx + 1; i < len; i++) {
+        map[i] = Math.min(newLen, map[prevAnchorIdx] + (i - prevAnchorIdx));
+    }
+}
+function fillGaps(map, newLen) {
+    const len = map.length;
+    // Идём вперёд: если позиция не установлена, берём предыдущую
+    let lastKnown = 0;
+    for (let i = 0; i < len; i++) {
+        if (map[i] !== -1) {
+            lastKnown = map[i];
+        }
+        else {
+            map[i] = lastKnown;
+        }
+    }
+    // Идём назад и корректируем, чтобы позиции не убывали
+    let nextKnown = newLen;
+    for (let i = len - 1; i >= 0; i--) {
+        if (map[i] > nextKnown) {
+            map[i] = nextKnown;
+        }
+        else {
+            nextKnown = map[i];
+        }
+    }
 }
 // Отчёт о работе
 function workReport() {
