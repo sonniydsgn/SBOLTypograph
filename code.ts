@@ -39,8 +39,8 @@ async function initSettings() {
         }
       }
     }
-    
-    await figma.clientStorage.setAsync('settings', settingsValuesLocal);  
+
+    await figma.clientStorage.setAsync('settings', settingsValuesLocal);
   } catch (error) {
     console.error('Ошибка:', error);
   }
@@ -176,29 +176,29 @@ function applyTypograph(stringToParse: string) {
     // Кавычки " « » „ “ ‘ ” ’
     const quoteMarks = "[\\u0022\\u00AB\\u00BB\\u201E\\u201C\\u2018\\u201D\\u2019]";
     const quoteMarksRegExpShort = new RegExp(quoteMarks, "g");
-    const quoteMarksRegExp = new RegExp("(" + quoteMarks + "{2,}|(?!\\w)" + quoteMarks + ")|([^\\s]" + quoteMarks + "+(?!\\w))","gm");    
+    const quoteMarksRegExp = new RegExp("(" + quoteMarks + "{2,}|(?!\\w)" + quoteMarks + ")|([^\\s]" + quoteMarks + "+(?!\\w))","gm");
     // Заменяем все ковычки на „ “
-    let stringToParseNew = stringToParse.replace(quoteMarksRegExp, function (match, p1, p2) {      
+    let stringToParseNew = stringToParse.replace(quoteMarksRegExp, function (match, p1, p2) {
       if (p1 !== undefined) {
         return p1.replace(quoteMarksRegExpShort, "„");
       } else {
         return p2.replace(quoteMarksRegExpShort, "“");
       }
     });
-    
+
     // Внешние кавычки меняем на « »
     stringToParseNew = stringToParseNew.replace(/\„((?:[^„“]*„[^„“]+“[^„“]*)+?|[^„“]*?)\“/gm, function (match, p1) {
         return "«" + p1 + "»";
       }
     );
-    
+
     // Если строки отличаются, сраниваем каждый символ. Если символы не совпадают, увеличивается счетчик различий.
     if (stringToParse !== stringToParseNew) {
       for (let i = 0; i < Math.max(stringToParse.length, stringToParseNew.length); i++) {
         if (stringToParse[i] !== stringToParseNew[i]) _counterReplaceQuoteMarks++;
-      }      
+      }
       stringToParse = stringToParseNew;
-    }    
+    }
   }
 
   function addNoBreakSpace() {
@@ -321,7 +321,7 @@ function applyTypograph(stringToParse: string) {
     // Если трёхзначный код города, формат номера +7 111 111-11-11
     // Если четырёхзначный код города, формат номера +7 1111 11-11-11
 
-    // Ищем: 
+    // Ищем:
     //    ( начало строки или [ один из символов: пробел, неразрывный пробел, разные кавычки, левая квадратная скобка, левая круглая скобка ] ) p1
     //    (
     //      (возможно ( или ( [ один из символов: пробел, тире ]) p3
@@ -357,7 +357,7 @@ function applyTypograph(stringToParse: string) {
     stringToParse = stringToParse.replace(regexpPhone, function (match, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13) {
       // Если в настройках ВКЛЮЧЕНО Изменять телефон
       if (settingsValuesLocal["phone"]) {
-        
+
         function checkBrackets(str: string): boolean {
           //  Эта функция принимает строку в качестве аргумента и возвращает true, если в строке одинаковое количество открывающих и закрывающих скобок, и false в противном случае
           let count = 0;
@@ -373,14 +373,14 @@ function applyTypograph(stringToParse: string) {
           }
           return count === 0;
         }
-        
+
         if (!checkBrackets(p2)) {
           // Разное количество открытых и закрытых скобок. Значит первая открытая скобка p3 не относится к телефону. Её менять не будем и присоединим к p1
           p1 = p1 + p3;
         }
 
         p4 = (p5 === '800') ? '8' : '+7';
-        
+
         if (p5.length == 3) {
           // 3-х значный код города
           changedPhoneNumber = p4 + _nbsp + p5 + _nbsp + p6 + p7 + p8 + phoneDash + p9 + p10 + phoneDash + p11 + p12;
@@ -392,8 +392,8 @@ function applyTypograph(stringToParse: string) {
 
         if (match != p1 + changedPhoneNumber + p13) _counterPhoneNumber++;
       } else {
-        // Если в настройках ВЫКЛЮЧЕНО Изменять телефон, найденный номер не меняем        
-        changedPhoneNumber = p2;        
+        // Если в настройках ВЫКЛЮЧЕНО Изменять телефон, найденный номер не меняем
+        changedPhoneNumber = p2;
       }
       // Вокруг найденного телефона добавляем спецтэг <Unchangeable> чтобы обработчик тире не изменял телефон. Потом его уберём
       return p1 + '<Unchangeable>' + changedPhoneNumber + '</Unchangeable>' + p13;
@@ -457,7 +457,7 @@ function applyTypograph(stringToParse: string) {
         }
         if (p2 !== undefined) _counterDeleteSpaces++;
         if (p4 !== undefined) _counterDeleteSpaces++;
-        
+
         return '<Unchangeable>' + p1 + p3 + p5 + '</Unchangeable>';
       });
     }
@@ -469,22 +469,22 @@ function applyTypograph(stringToParse: string) {
     monthWeekday(dict.weekday);
     // День недели сокращённо
     monthWeekday(dict.weekdayShort);
-    
+
     // Внутри текста используем неразрывный пробел + длинное тире
     // Что обрабатываем: буква - буква, буква - цифра, цифра - буква
     // Для диапазонов чисел используем короткое (среднее) тире «–» без пробелов: 2002–2009, XI–XII
     // Что обрабатываем: цифра, латинская цифра – цифра, латинская цифра
-    // Ищем: 
+    // Ищем:
     //    ( <Unchangeable>.*</Unchangeable> ) p1
-    //    или 
-    //    (?: 
+    //    или
+    //    (?:
     //      (( [ цифру, латинскую цифру ] ) p3 или ( [ букву ] ) p4 ) p2
     //      ( [ возможный пробел ] )? p5
     //      ( дефис ) p6
     //      ( [ возможный пробел ] )? p7
     //      (( [ цифру, латинскую цифру ] ) p9 или ( [ букву ] ) p10 ) p8
     //    )
-    
+
     // Группа ( <Unchangeable>.*</Unchangeable> ) p1 нужна чтобы не изменять номер телефона
     regexp = new RegExp('(<Unchangeable>.*<\/Unchangeable>)|(?:(([\\dIVXLCDMZ])|([А-ЯЁа-яёA-Za-z]))([\\u0020\\u00A0])?(' + dashAll + ')([\\u0020\\u00A0])?(([\\dIVXLCDMZ])|([А-ЯЁа-яёA-Za-z])))', 'gm');
     stringToParse = stringToParse.replace(regexp, function (match, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10) {
@@ -709,7 +709,7 @@ function applyTypograph(stringToParse: string) {
   function misc() {
     // СберБанк слитно, СберБанк, ПАО Сбербанк
     stringToParse = stringToParse.replace(/(ПАО([\u0020\u00A0]))?(Сбер([\u0020\u00A0])?банк)/gmi, function (match, p1, p2, p3, p4) {
-      // Есть пробел между Сбер Банк, удалим его 
+      // Есть пробел между Сбер Банк, удалим его
       if (p4 !== undefined) _counterDeleteSpaces++;
 
       if (p1 !== undefined) {
@@ -760,7 +760,7 @@ function applyTypograph(stringToParse: string) {
     changeMisc("sms|смс", "СМС");
     changeMisc("wifi|wi-fi", "Wi-Fi");
     changeMisc("мск|msk", "мск");
-    
+
 
     // пуш-уведомление
     stringToParse = stringToParse.replace(/(?:(^|(?:^(?:[\u0020\u00A0]+?)?[\«\„\"\“\u002D\u2012\u2013\u2014\⁃\•\‧\‣][\u0020\u00A0]?)|(?:[\.\…\!\?][\u0020\u00A0][\«\„\"\“\u002D\u2012\u2013\u2014]?[\u0020\u00A0]?))|([\u0020\u00A0\«\„\"\“\(\[]))((?:push|пуш)[\u0020\u00A0\u002D\u2012\u2013\u2014]уведомлен)(ие|ия|ий|ию|иям|ием|иями|ии|иях)/gmi, function (match, p1, p2, p3, p4) {
@@ -775,10 +775,10 @@ function applyTypograph(stringToParse: string) {
       }
 
       if (p3 != push) _counterOther++;
-      
+
       return p1 + p2 + push + p4.toLowerCase();
     });
-    
+
     // email
     stringToParse = stringToParse.replace(/(?:(^|(?:^(?:[\u0020\u00A0]+?)?[\«\„\"\“\u002D\u2012\u2013\u2014\⁃\•\‧\‣][\u0020\u00A0]?)|(?:[\.\…\!\?][\u0020\u00A0][\«\„\"\“\u002D\u2012\u2013\u2014]?[\u0020\u00A0]?))|([\u0020\u00A0\«\„\"\“\(\[]))(e-mail|email|имейл|емейл|имайл|емаил)/gmi, function (match, p1, p2, p3) {
       let email;
@@ -792,10 +792,10 @@ function applyTypograph(stringToParse: string) {
       }
 
       if (p3 != email) _counterOther++;
-      
+
       return p1 + p2 + email;
     });
-    
+
     // офлайн
     stringToParse = stringToParse.replace(/(?:(^|(?:^(?:[\u0020\u00A0]+?)?[\«\„\"\“\u002D\u2012\u2013\u2014\⁃\•\‧\‣][\u0020\u00A0]?)|(?:[\.\…\!\?][\u0020\u00A0][\«\„\"\“\u002D\u2012\u2013\u2014]?[\u0020\u00A0]?))|([\u0020\u00A0\«\„\"\“\(\[]))(оффлайн|офлайн|офф-лайн|оф-лайн)/gmi, function (match, p1, p2, p3) {
       let offline;
@@ -809,11 +809,11 @@ function applyTypograph(stringToParse: string) {
       }
 
       if (p3 != offline) _counterOther++;
-      
+
       return p1 + p2 + offline;
     });
-    
-    
+
+
     // онлайн
     stringToParse = stringToParse.replace(/(?:(^|(?:^(?:[\u0020\u00A0]+?)?[\«\„\"\“\u002D\u2012\u2013\u2014\⁃\•\‧\‣][\u0020\u00A0]?)|(?:[\.\…\!\?][\u0020\u00A0][\«\„\"\“\u002D\u2012\u2013\u2014]?[\u0020\u00A0]?)|(?:Сбербанк[\u0020\u00A0]))|([\u0020\u00A0\«\„\"\“\(\[]))(оннлайн|онлайн|онн-лайн|он-лайн)/gmi, function (match, p1, p2, p3) {
       let online;
@@ -827,10 +827,10 @@ function applyTypograph(stringToParse: string) {
       }
 
       if (p3 != online) _counterOther++;
-      
+
       return p1 + p2 + online;
     });
-    
+
     // сим-карта
     stringToParse = stringToParse.replace(/(?:(^|(?:^(?:[\u0020\u00A0]+?)?[\«\„\"\“\u002D\u2012\u2013\u2014\⁃\•\‧\‣][\u0020\u00A0]?)|(?:[\.\…\!\?][\u0020\u00A0][\«\„\"\“\u002D\u2012\u2013\u2014]?[\u0020\u00A0]?))|([\u0020\u00A0\«\„\"\“\(\[]))((?:sim|сим)[\u0020\u00A0\u002D\u2012\u2013\u2014]карт)(а|ы|е|ам|у|ы|ой|ами|ах)?/gmi, function (match, p1, p2, p3, p4) {
       let sim;
@@ -846,10 +846,10 @@ function applyTypograph(stringToParse: string) {
       if (p3 != sim) _counterOther++;
 
       if (p4 === undefined) p4 = '';
-      
+
       return p1 + p2 + sim + p4.toLowerCase();
     });
-    
+
     // ПИН-код, QR-код
     stringToParse = stringToParse.replace(/(?<=^|[\u0020\u00A0\«\„\"\“\(\[])((pin|пин|QR)[\u0020\u00A0\u002D\u2012\u2013\u2014]код)(ы|а|ов|у|ам|ы|ом|ами|е|ах)?/gmi, function (match, p1, p2, p3) {
       let pinqr;
@@ -866,7 +866,7 @@ function applyTypograph(stringToParse: string) {
 
       return pinqr + p3.toLowerCase();
     });
-    
+
     // СVV-код, СVС-код, СVV2-код, СVС2-код, CVV, CVC, СVV2, СVС2
     stringToParse = stringToParse.replace(/(?<=^|[\u0020\u00A0\«\„\"\“\(\[])(cvv|cvc|cvv2|cvc2)([\u0020\u00A0\u002D\u2012\u2013\u2014]код)?(ы|а|ов|у|ам|ы|ом|ами|е|ах)?/gmi, function (match, p1, p2, p3) {
       switch (p1) {
@@ -901,7 +901,7 @@ function applyTypograph(stringToParse: string) {
   }
 
 
-  punctuation(); 
+  punctuation();
   deleteSpaces();
   if (settingsValuesLocal["quotemarks"]) replaceQuoteMarks();
   addNoBreakSpace();
@@ -939,8 +939,8 @@ function findTextNodes(): TextNode[] {
       }
     });
     return allTextNodes;
-  } 
-  
+  }
+
   // Если ничего не выбрано, ищем по всей странице
   return figma.currentPage.findAllWithCriteria({
     types: ['TEXT']
@@ -1131,12 +1131,12 @@ function workReport() {
     workReportData["Ничего не исправлено"] = 0;
     closePluginMessage = "Ничего не исправлено";
   }
-  
+
   let windowHeight = Object.keys(workReportData).length * workReportItemHeight + buttonPlaceHeight + missingFontsRowHeight + 16;
   if (Object.keys(workReportData).length == 1) {
     windowHeight = 118;
   }
-  
+
   // Показываем или нет окно статистики. Зависит от настроек
   if (settingsValuesLocal["showresult"]) {
     figma.showUI(__html__, { width: 340, height: windowHeight });
@@ -1150,10 +1150,10 @@ function workReport() {
 async function runPlugin() {
   // Заполняем словарь Ёфикатора
   createYoDict();
-  
+
   // Поиск текстовых узлов и применения к ним Типографа
   await applyTypographToTextNodes();
-  
+
   // Отчёт о работе
   workReport();
 };
