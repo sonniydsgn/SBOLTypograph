@@ -1067,7 +1067,7 @@ function mergeOps(ops: DiffOp[]): DiffOp[] {
     const last = merged[merged.length - 1];
 
     if (last && last.type === 'insert' && op.type === 'insert'
-      && last.pos + last.text.length === op.pos  // ← было last.pos === op.pos
+      && last.pos + last.text.length === op.pos
     ) {
       last.text += op.text;
     } else if (last && last.type === 'delete' && op.type === 'delete'
@@ -1160,10 +1160,10 @@ async function saveSettings(settingsValues: { [key: string]: boolean }) {
   await initSettings();
 
   switch (figma.command) {
-    case "run": // Если в меню выбрано "SBOL Typograph"
+    case "run": // Если в меню выбрано "Исправить"
       await runPlugin();
       break;
-    case "fast-run": // Если в меню выбрано "SBOL Typograph"
+    case "fast-run": // Если в меню выбрано "Исправить (быстро)"
       await runPlugin(false);
       break;
     case "settings": // Если в меню выбрано "⚙️ Настройки"
