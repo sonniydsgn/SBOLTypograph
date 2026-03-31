@@ -12,7 +12,7 @@ const _nbsp = "\u00A0";
 let _counterPunctuation = 0;
 let _counterReplaceQuoteMarks = 0;
 let _counterDeleteSpaces = 0;
-let _counterRemoveEndDotInSingleString = 0;
+const _counterRemoveEndDotInSingleString = 0;
 let _counterAddNoBreakSpace = 0;
 let _counterYO = 0;
 let _counterDash = 0;
@@ -23,9 +23,9 @@ let _counterCurrency = 0;
 let _counterLowerCase = 0;
 let _counterOther = 0;
 let _counterMissingFont = 0;
-let _yoDict = new Map();
+const _yoDict = new Map();
 // Настройки по умолчанию
-let settingsValuesLocal = {
+const settingsValuesLocal = {
     yo: true,
     quotemarks: true,
     phone: true,
@@ -36,7 +36,7 @@ function initSettings() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // Получаем сохраненные настройки из клиентского хранилища Figma (если они есть) и обновляем локальные настройки, заменяя их значениями из сохраненных настроек. После этого сохраняем локальные настройки в клиентское хранилище Figma.
-            let settingsValuesSaved = yield figma.clientStorage.getAsync('settings');
+            const settingsValuesSaved = yield figma.clientStorage.getAsync('settings');
             // Если сохранённые настройки есть
             if (settingsValuesSaved) {
                 for (const key in settingsValuesLocal) {
@@ -52,7 +52,6 @@ function initSettings() {
         }
     });
 }
-;
 // Словари
 const dict = {
     // Месяц
@@ -249,13 +248,13 @@ function applyTypograph(stringToParse) {
         // Ищем в тексте слова
         stringToParse = stringToParse.replace(/(\d\s?)?([А-ЯЁа-яё]+)/gim, function (match, p1, p2) {
             // Найденное слово
-            let wordOriginal = p2;
+            const wordOriginal = p2;
             // Переводим найденное слово в нижний регистр
-            let wordLower = wordOriginal.toLowerCase();
+            const wordLower = wordOriginal.toLowerCase();
             let wordModified = "";
             // Если в Ё-словаре yoDict есть такое слово
             if (_yoDict.has(wordLower)) {
-                let yoDictWord = _yoDict.get(wordLower);
+                const yoDictWord = _yoDict.get(wordLower);
                 // Проверяем каждую букву оригинального слова
                 for (let i = 0; i < wordOriginal.length; i++) {
                     // Приводим регистр каждой буквы словарного слова к регистру буквы из оригинального
@@ -280,10 +279,10 @@ function applyTypograph(stringToParse) {
     }
     function phoneNumber() {
         // Пробел или неразрывный пробел или любое тире
-        let spaceDashTmpl = '[\\u0020\\u00A0\\u002D\\u2012\\u2013\\u2014]';
+        const spaceDashTmpl = '[\\u0020\\u00A0\\u002D\\u2012\\u2013\\u2014]';
         let changedPhoneNumber = '';
         // Короткое тире в тел. номере
-        let phoneDash = '\u002D';
+        const phoneDash = '\u002D';
         // Федеральный номер 8 800
         // Формат номера 8 800 555-55-50
         // В номерах телефонов +7 111 111-11-11 используем дефис без пробелов
@@ -322,7 +321,7 @@ function applyTypograph(stringToParse) {
         //      ( возможно любая цифра ) p12
         //    ) p2
         //    ( [ один из символов: пробел, неразрывный пробел, разные кавычки, знаки пунктуации, правая квадратная скобка, правая круглая скобка ] или конец строки ) p13
-        let regexpPhone = new RegExp('(^|[\\u0020\\u00A0\\"\\«\\“\\‘\\„\\[\\(])((\\(|\\(' + spaceDashTmpl + ')?(?:\\+|\\+' + spaceDashTmpl + ')?\\(?' + spaceDashTmpl + '?(7|8)' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?\\(?' + spaceDashTmpl + '?(' + dict.phoneCodeRu + ')' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)?)([\\u0020\\u00A0\\.\\…\\,\\;\\:\\?\\!\\"\\»\\“\\”\\‘\\]\\)]|$)', 'gm');
+        const regexpPhone = new RegExp('(^|[\\u0020\\u00A0\\"\\«\\“\\‘\\„\\[\\(])((\\(|\\(' + spaceDashTmpl + ')?(?:\\+|\\+' + spaceDashTmpl + ')?\\(?' + spaceDashTmpl + '?(7|8)' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?\\(?' + spaceDashTmpl + '?(' + dict.phoneCodeRu + ')' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)?)([\\u0020\\u00A0\\.\\…\\,\\;\\:\\?\\!\\"\\»\\“\\”\\‘\\]\\)]|$)', 'gm');
         stringToParse = stringToParse.replace(regexpPhone, function (match, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13) {
             // Если в настройках ВКЛЮЧЕНО Изменять телефон
             if (settingsValuesLocal["phone"]) {
@@ -516,7 +515,7 @@ function applyTypograph(stringToParse) {
         // или
         // Остальные вхождения слов из шаблона
         // ( ( [ пробел, кавычки, скобки ] ) ( Подстрока p2 ) ( [ Не букву ] ) )
-        let regexp = new RegExp('(?:(?<=^|(?<=^(?:[\\u0020\\u00A0]+?)?[\\«\\„\\"\\“\\u002D\\u2012\\u2013\\u2014\\⁃\\•\\‧\\‣][\\u0020\\u00A0]?)|(?:[\\.\\…\\!\\?][\\u0020\\u00A0][\\«\\„\\"\\“\\u002D\\u2012\\u2013\\u2014]?[\\u0020\\u00A0]?))(' +
+        const regexp = new RegExp('(?:(?<=^|(?<=^(?:[\\u0020\\u00A0]+?)?[\\«\\„\\"\\“\\u002D\\u2012\\u2013\\u2014\\⁃\\•\\‧\\‣][\\u0020\\u00A0]?)|(?:[\\.\\…\\!\\?][\\u0020\\u00A0][\\«\\„\\"\\“\\u002D\\u2012\\u2013\\u2014]?[\\u0020\\u00A0]?))(' +
             dict.lowerCase +
             ')(?=[^А-ЯЁа-яё]))|(?:(?<=[\\s\\«\\„\\"\\“\\(\\[])(' +
             dict.lowerCase +
@@ -665,7 +664,7 @@ function applyTypograph(stringToParse) {
             return p1 + p3;
         });
         function changeMisc(looking, change) {
-            let regexp = new RegExp(looking, 'gmi');
+            const regexp = new RegExp(looking, 'gmi');
             stringToParse = stringToParse.replace(regexp, function (match) {
                 if (match != change)
                     _counterOther++;
@@ -970,141 +969,12 @@ function mergeOps(ops) {
     }
     return merged;
 }
-/**
- * Строит массив [charIndex] => value по сегментам.
- * Позволяет за O(1) узнать значение свойства в любой позиции старого текста.
- */
-function getTextStyleIdAtPosition(textStyleSegments, charIndex) {
-    for (const seg of textStyleSegments) {
-        if (charIndex >= seg.start && charIndex < seg.end) {
-            return seg.textStyleId;
-        }
-    }
-    return '';
-}
-/**
- * Строит маппинг позиций через LCS (diff).
- * positionMap[oldIndex] = newIndex
- * positionMap[oldText.length] = newText.length (граница конца)
- */
-function buildPositionMap(oldText, newText) {
-    const oldLen = oldText.length;
-    const newLen = newText.length;
-    // Вычисляем LCS через динамическое программирование
-    // dp[i][j] = длина LCS для oldText[0..i-1] и newText[0..j-1]
-    const dp = Array.from({ length: oldLen + 1 }, () => new Array(newLen + 1).fill(0));
-    for (let i = 1; i <= oldLen; i++) {
-        for (let j = 1; j <= newLen; j++) {
-            if (oldText[i - 1] === newText[j - 1]) {
-                dp[i][j] = dp[i - 1][j - 1] + 1;
-            }
-            else {
-                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-            }
-        }
-    }
-    // Обратный проход — восстанавливаем маппинг позиций
-    const positionMap = new Array(oldLen + 1).fill(-1);
-    let i = oldLen;
-    let j = newLen;
-    while (i > 0 && j > 0) {
-        if (oldText[i - 1] === newText[j - 1]) {
-            // Символ совпал — это якорь, позиция точная
-            positionMap[i] = j;
-            i--;
-            j--;
-        }
-        else if (dp[i - 1][j] >= dp[i][j - 1]) {
-            // Символ удалён из oldText
-            i--;
-        }
-        else {
-            // Символ вставлен в newText
-            j--;
-        }
-    }
-    // Граница конца строки
-    positionMap[oldLen] = newLen;
-    // Заполняем пропуски (замененные символы — не вошли в LCS)
-    // Интерполируем между известными якорями
-    interpolateGaps(positionMap, newLen);
-    return positionMap;
-}
-/**
- * Заполняет позиции -1 линейной интерполяцией между якорями.
- *
- * Например: [-1, -1, 5, -1, -1, 8]
- * Между якорями 5 и 8 равномерно распределяем: [3, 4, 5, 6, 7, 8]
- */
-function interpolateGaps(map, newLen) {
-    const len = map.length;
-    // Находим первый якорь слева и распространяем влево
-    let firstKnown = -1;
-    for (let i = 0; i < len; i++) {
-        if (map[i] !== -1) {
-            firstKnown = i;
-            break;
-        }
-    }
-    // Если якорей нет вообще — равномерно распределяем
-    if (firstKnown === -1) {
-        for (let i = 0; i < len; i++) {
-            map[i] = Math.round((i / (len - 1)) * newLen);
-        }
-        return;
-    }
-    // Заполняем до первого якоря
-    for (let i = 0; i < firstKnown; i++) {
-        map[i] = Math.max(0, map[firstKnown] - (firstKnown - i));
-    }
-    // Интерполируем между якорями
-    let prevAnchorIdx = firstKnown;
-    for (let i = firstKnown + 1; i < len; i++) {
-        if (map[i] !== -1) {
-            // Нашли следующий якорь — заполняем промежуток
-            const gap = i - prevAnchorIdx;
-            const startVal = map[prevAnchorIdx];
-            const endVal = map[i];
-            for (let k = 1; k < gap; k++) {
-                map[prevAnchorIdx + k] = Math.round(startVal + (endVal - startVal) * (k / gap));
-            }
-            prevAnchorIdx = i;
-        }
-    }
-    // Заполняем после последнего якоря
-    for (let i = prevAnchorIdx + 1; i < len; i++) {
-        map[i] = Math.min(newLen, map[prevAnchorIdx] + (i - prevAnchorIdx));
-    }
-}
-function fillGaps(map, newLen) {
-    const len = map.length;
-    // Идём вперёд: если позиция не установлена, берём предыдущую
-    let lastKnown = 0;
-    for (let i = 0; i < len; i++) {
-        if (map[i] !== -1) {
-            lastKnown = map[i];
-        }
-        else {
-            map[i] = lastKnown;
-        }
-    }
-    // Идём назад и корректируем, чтобы позиции не убывали
-    let nextKnown = newLen;
-    for (let i = len - 1; i >= 0; i--) {
-        if (map[i] > nextKnown) {
-            map[i] = nextKnown;
-        }
-        else {
-            nextKnown = map[i];
-        }
-    }
-}
 // Отчёт о работе
 function workReport() {
     let missingFontsRowHeight = 0;
-    let workReportItemHeight = 33;
-    let buttonPlaceHeight = 56;
-    let workReportData = {
+    const workReportItemHeight = 33;
+    const buttonPlaceHeight = 56;
+    const workReportData = {
         "Знаков пунктуации исправлено": _counterPunctuation,
         "Лишних пробелов удалено": _counterDeleteSpaces,
         "Точек в заголовках удалено": _counterRemoveEndDotInSingleString,
@@ -1123,7 +993,7 @@ function workReport() {
     // Сообщение, которое показываем когда отключено окно с результатами
     let closePluginMessage = "Готово!";
     // Оставляем в объекте workReportData только ключи с ненулевыми значениями
-    for (let key in workReportData) {
+    for (const key in workReportData) {
         if (workReportData[key] === 0)
             delete workReportData[key];
     }
@@ -1157,21 +1027,18 @@ function runPlugin() {
         workReport();
     });
 }
-;
 // Запуск настроек плагина
 function runSettings() {
     // Отправляем настройки в UI
     figma.showUI(__html__, { width: 340, height: 230 });
     figma.ui.postMessage({ action: "settings", data: settingsValuesLocal });
 }
-;
 // Сохраняем переданные из UI настройки
 function saveSettings(settingsValues) {
     return __awaiter(this, void 0, void 0, function* () {
         yield figma.clientStorage.setAsync('settings', settingsValues);
     });
 }
-;
 (() => __awaiter(void 0, void 0, void 0, function* () {
     yield initSettings();
     switch (figma.command) {
