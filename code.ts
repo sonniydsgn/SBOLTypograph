@@ -2,7 +2,7 @@ const _nbsp = "\u00A0";
 let _counterPunctuation: number = 0;
 let _counterReplaceQuoteMarks: number = 0;
 let _counterDeleteSpaces: number = 0;
-let _counterRemoveEndDotInSingleString: number = 0;
+const _counterRemoveEndDotInSingleString: number = 0;
 let _counterAddNoBreakSpace: number = 0;
 let _counterYO: number = 0;
 let _counterDash: number = 0;
@@ -14,10 +14,10 @@ let _counterLowerCase: number = 0;
 let _counterOther: number = 0;
 let _counterMissingFont: number = 0;
 
-let _yoDict = new Map();
+const _yoDict = new Map();
 
 // Настройки по умолчанию
-let settingsValuesLocal: { [key: string]: boolean } = {
+const settingsValuesLocal: { [key: string]: boolean } = {
   yo: true,
   quotemarks: true,
   phone: true,
@@ -29,7 +29,7 @@ let settingsValuesLocal: { [key: string]: boolean } = {
 async function initSettings() {
   try {
     // Получаем сохраненные настройки из клиентского хранилища Figma (если они есть) и обновляем локальные настройки, заменяя их значениями из сохраненных настроек. После этого сохраняем локальные настройки в клиентское хранилище Figma.
-    let settingsValuesSaved = await figma.clientStorage.getAsync('settings');
+    const settingsValuesSaved = await figma.clientStorage.getAsync('settings');
 
     // Если сохранённые настройки есть
     if (settingsValuesSaved) {
@@ -44,7 +44,7 @@ async function initSettings() {
   } catch (error) {
     console.error('Ошибка:', error);
   }
-};
+}
 
 // Словари
 const dict = {
@@ -276,13 +276,13 @@ function applyTypograph(stringToParse: string) {
     // Ищем в тексте слова
     stringToParse = stringToParse.replace(/(\d\s?)?([А-ЯЁа-яё]+)/gim, function (match, p1, p2) {
       // Найденное слово
-      let wordOriginal = p2;
+      const wordOriginal = p2;
       // Переводим найденное слово в нижний регистр
-      let wordLower = wordOriginal.toLowerCase();
+      const wordLower = wordOriginal.toLowerCase();
       let wordModified = "";
       // Если в Ё-словаре yoDict есть такое слово
       if (_yoDict.has(wordLower)) {
-        let yoDictWord = _yoDict.get(wordLower);
+        const yoDictWord = _yoDict.get(wordLower);
         // Проверяем каждую букву оригинального слова
         for (let i = 0; i < wordOriginal.length; i++) {
           // Приводим регистр каждой буквы словарного слова к регистру буквы из оригинального
@@ -309,10 +309,10 @@ function applyTypograph(stringToParse: string) {
 
   function phoneNumber() {
     // Пробел или неразрывный пробел или любое тире
-    let spaceDashTmpl = '[\\u0020\\u00A0\\u002D\\u2012\\u2013\\u2014]';
+    const spaceDashTmpl = '[\\u0020\\u00A0\\u002D\\u2012\\u2013\\u2014]';
     let changedPhoneNumber = '';
     // Короткое тире в тел. номере
-    let phoneDash = '\u002D';
+    const phoneDash = '\u002D';
 
     // Федеральный номер 8 800
     // Формат номера 8 800 555-55-50
@@ -353,7 +353,7 @@ function applyTypograph(stringToParse: string) {
     //      ( возможно любая цифра ) p12
     //    ) p2
     //    ( [ один из символов: пробел, неразрывный пробел, разные кавычки, знаки пунктуации, правая квадратная скобка, правая круглая скобка ] или конец строки ) p13
-    let regexpPhone = new RegExp('(^|[\\u0020\\u00A0\\"\\«\\“\\‘\\„\\[\\(])((\\(|\\(' + spaceDashTmpl + ')?(?:\\+|\\+' + spaceDashTmpl + ')?\\(?' + spaceDashTmpl + '?(7|8)' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?\\(?' + spaceDashTmpl + '?(' + dict.phoneCodeRu + ')' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)?)([\\u0020\\u00A0\\.\\…\\,\\;\\:\\?\\!\\"\\»\\“\\”\\‘\\]\\)]|$)', 'gm');
+    const regexpPhone = new RegExp('(^|[\\u0020\\u00A0\\"\\«\\“\\‘\\„\\[\\(])((\\(|\\(' + spaceDashTmpl + ')?(?:\\+|\\+' + spaceDashTmpl + ')?\\(?' + spaceDashTmpl + '?(7|8)' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?\\(?' + spaceDashTmpl + '?(' + dict.phoneCodeRu + ')' + spaceDashTmpl + '?\\)?' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)' + spaceDashTmpl + '?(\\d)?)([\\u0020\\u00A0\\.\\…\\,\\;\\:\\?\\!\\"\\»\\“\\”\\‘\\]\\)]|$)', 'gm');
     stringToParse = stringToParse.replace(regexpPhone, function (match, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13) {
       // Если в настройках ВКЛЮЧЕНО Изменять телефон
       if (settingsValuesLocal["phone"]) {
@@ -560,7 +560,7 @@ function applyTypograph(stringToParse: string) {
     // Остальные вхождения слов из шаблона
     // ( ( [ пробел, кавычки, скобки ] ) ( Подстрока p2 ) ( [ Не букву ] ) )
 
-    let regexp = new RegExp(
+    const regexp = new RegExp(
       '(?:(?<=^|(?<=^(?:[\\u0020\\u00A0]+?)?[\\«\\„\\"\\“\\u002D\\u2012\\u2013\\u2014\\⁃\\•\\‧\\‣][\\u0020\\u00A0]?)|(?:[\\.\\…\\!\\?][\\u0020\\u00A0][\\«\\„\\"\\“\\u002D\\u2012\\u2013\\u2014]?[\\u0020\\u00A0]?))(' +
         dict.lowerCase +
         ')(?=[^А-ЯЁа-яё]))|(?:(?<=[\\s\\«\\„\\"\\“\\(\\[])(' +
@@ -735,7 +735,7 @@ function applyTypograph(stringToParse: string) {
     });
 
     function changeMisc(looking: string | RegExp, change: string) {
-      let regexp = new RegExp(looking, 'gmi');
+      const regexp = new RegExp(looking, 'gmi');
       stringToParse = stringToParse.replace(regexp, function (match) {
         if (match != change) _counterOther++;
         return change;
@@ -1099,9 +1099,9 @@ function mergeOps(ops: DiffOp[]): DiffOp[] {
 // Отчёт о работе
 function workReport() {
   let missingFontsRowHeight: number = 0;
-  let workReportItemHeight: number = 33;
-  let buttonPlaceHeight: number = 56;
-  let workReportData: { [key: string]: string | number } = {
+  const workReportItemHeight: number = 33;
+  const buttonPlaceHeight: number = 56;
+  const workReportData: { [key: string]: string | number } = {
     "Знаков пунктуации исправлено": _counterPunctuation,
     "Лишних пробелов удалено": _counterDeleteSpaces,
     "Точек в заголовках удалено": _counterRemoveEndDotInSingleString,
@@ -1121,7 +1121,7 @@ function workReport() {
   let closePluginMessage: string = "Готово!";
 
   // Оставляем в объекте workReportData только ключи с ненулевыми значениями
-  for (let key in workReportData) {
+  for (const key in workReportData) {
     if (workReportData[key] === 0) delete workReportData[key];
   }
 
@@ -1156,19 +1156,19 @@ async function runPlugin(preserveStyles: boolean = true) {
 
   // Отчёт о работе
   workReport();
-};
+}
 
 // Запуск настроек плагина
 function runSettings() {
   // Отправляем настройки в UI
   figma.showUI(__html__, { width: 340, height: 300 });
   figma.ui.postMessage({ action: "settings", data: settingsValuesLocal });
-};
+}
 
 // Сохраняем переданные из UI настройки
 async function saveSettings(settingsValues: { [key: string]: boolean }) {
   await figma.clientStorage.setAsync('settings', settingsValues);
-};
+}
 
 (async () => {
   await initSettings();
