@@ -1174,10 +1174,10 @@ async function saveSettings(settingsValues: { [key: string]: boolean }) {
   await initSettings();
 
   switch (figma.command) {
-    case "run": // Если в меню выбрано "SBOL Typograph"
+    case "run": // Если в меню выбрано "Исправить"
       await runPlugin();
       break;
-    case "fast-run": // Если в меню выбрано "SBOL Typograph"
+    case "fast-run": // Если в меню выбрано "Исправить (быстро)"
       await runPlugin(false);
       break;
     case "settings": // Если в меню выбрано "⚙️ Настройки"
