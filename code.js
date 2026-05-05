@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 const _nbsp = "\u00A0";
 let _counterPunctuation = 0;
 let _counterReplaceQuoteMarks = 0;
@@ -30,27 +21,26 @@ let settingsValuesLocal = {
     quotemarks: true,
     phone: true,
     showresult: true,
+    savestyles: true,
 };
 // Инициализация настроек плагина
-function initSettings() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            // Получаем сохраненные настройки из клиентского хранилища Figma (если они есть) и обновляем локальные настройки, заменяя их значениями из сохраненных настроек. После этого сохраняем локальные настройки в клиентское хранилище Figma.
-            let settingsValuesSaved = yield figma.clientStorage.getAsync('settings');
-            // Если сохранённые настройки есть
-            if (settingsValuesSaved) {
-                for (const key in settingsValuesLocal) {
-                    if (key in settingsValuesSaved && typeof settingsValuesSaved[key] === typeof settingsValuesLocal[key]) {
-                        settingsValuesLocal[key] = settingsValuesSaved[key];
-                    }
+async function initSettings() {
+    try {
+        // Получаем сохраненные настройки из клиентского хранилища Figma (если они есть) и обновляем локальные настройки, заменяя их значениями из сохраненных настроек. После этого сохраняем локальные настройки в клиентское хранилище Figma.
+        let settingsValuesSaved = await figma.clientStorage.getAsync('settings');
+        // Если сохранённые настройки есть
+        if (settingsValuesSaved) {
+            for (const key in settingsValuesLocal) {
+                if (key in settingsValuesSaved && typeof settingsValuesSaved[key] === typeof settingsValuesLocal[key]) {
+                    settingsValuesLocal[key] = settingsValuesSaved[key];
                 }
             }
-            yield figma.clientStorage.setAsync('settings', settingsValuesLocal);
         }
-        catch (error) {
-            console.error('Ошибка:', error);
-        }
-    });
+        await figma.clientStorage.setAsync('settings', settingsValuesLocal);
+    }
+    catch (error) {
+        console.error('Ошибка:', error);
+    }
 }
 ;
 // Словари
@@ -856,33 +846,131 @@ function findTextNodes() {
     });
 }
 // Применяем к текстовым узлам Типограф
-function applyTypographToTextNodes() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const textNodes = findTextNodes();
-        yield Promise.all(textNodes.map((node) => __awaiter(this, void 0, void 0, function* () {
-            // Если в узле нет отсутствующих шрифтов
-            if (!node.hasMissingFont) {
-                // Применяем к текстовому узлу Типограф
-                const typographResult = applyTypograph(node.characters);
-                // Если Типограф что-то исправил
-                if (node.characters !== typographResult) {
-                    try {
-                        // Загружаем шрифты текстового узла
-                        yield Promise.all(node.getRangeAllFontNames(0, node.characters.length)
-                            .map(figma.loadFontAsync));
-                        node.characters = typographResult;
-                    }
-                    catch (error) {
-                        console.error("Не удалось загрузить шрифты:", error);
-                    }
-                }
+async function applyTypographToTextNodes() {
+    const textNodes = findTextNodes();
+    await Promise.all(textNodes.map(async (node) => {
+        // Если в узле есть отсутствующие шрифты
+        if (node.hasMissingFont) {
+            _counterMissingFont++;
+            return;
+        }
+        const originalText = node.characters;
+        const typographResult = applyTypograph(node.characters);
+        // Если Типограф ничего не исправил
+        if (originalText === typographResult)
+            return;
+        try {
+            if (node.fontName !== figma.mixed) {
+                // В текстовом узле один стиль
+                await figma.loadFontAsync(node.fontName);
+                node.characters = typographResult;
             }
             else {
-                _counterMissingFont++;
+                // В текстовом узле несколько стилей
+                await Promise.all(node.getRangeAllFontNames(0, originalText.length)
+                    .map(figma.loadFontAsync));
+                // Если нужно сохранять стили
+                if (settingsValuesLocal["savestyles"]) {
+                    await applyTextChangesPreservingStyles(node, originalText, typographResult);
+                }
+                else {
+                    node.characters = typographResult;
+                }
             }
-        })));
-    });
+        }
+        catch (error) {
+            console.error("Не удалось загрузить шрифты:", error);
+        }
+    }));
 }
+// ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛ Схранение текстовых стилей ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛
+// ⁛⁛⁛⁛⁛⁛ Автор кода Alexey Kalinin sonniydsgn https://github.com/sonniydsgn ⁛⁛⁛⁛⁛⁛
+// ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛
+/**
+ * Применяет изменения текста через insertCharacters/deleteCharacters
+ * вместо node.characters = ... чтобы сохранить стили
+ */
+async function applyTextChangesPreservingStyles(node, oldText, newText) {
+    // Вычисляем diff — список операций DELETE и INSERT
+    const ops = computeDiff(oldText, newText);
+    // Применяем операции с конца, чтобы не сбивать позиции
+    let offset = 0;
+    for (const op of ops) {
+        if (op.type === 'delete') {
+            node.deleteCharacters(op.pos + offset, op.pos + offset + op.count);
+            offset -= op.count;
+        }
+        else if (op.type === 'insert') {
+            // Берём стиль из соседнего символа справа (или слева если вставка в конец)
+            node.insertCharacters(op.pos + offset, op.text, 'BEFORE');
+            offset += op.text.length;
+        }
+    }
+}
+function computeDiff(oldText, newText) {
+    const oldLen = oldText.length;
+    const newLen = newText.length;
+    // Строим только две строки вместо всей матрицы O(n*m) → O(m)
+    let prev = new Array(newLen + 1).fill(0);
+    let curr = new Array(newLen + 1).fill(0);
+    for (let i = 1; i <= oldLen; i++) {
+        for (let j = 1; j <= newLen; j++) {
+            curr[j] = oldText[i - 1] === newText[j - 1]
+                ? prev[j - 1] + 1
+                : Math.max(prev[j], curr[j - 1]);
+        }
+        [prev, curr] = [curr, prev];
+        curr.fill(0);
+    }
+    // Для обратного прохода нужна вся матрица — храним только нужные строки.
+    // Перестраиваем матрицу, но теперь только для traceback.
+    // Используем экономный вариант: храним всю матрицу но Int16Array вместо number[][]
+    const dp = Array.from({ length: oldLen + 1 }, () => new Int16Array(newLen + 1));
+    for (let i = 1; i <= oldLen; i++) {
+        for (let j = 1; j <= newLen; j++) {
+            dp[i][j] = oldText[i - 1] === newText[j - 1]
+                ? dp[i - 1][j - 1] + 1
+                : Math.max(dp[i - 1][j], dp[i][j - 1]);
+        }
+    }
+    // Обратный проход
+    const ops = [];
+    let i = oldLen, j = newLen;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && oldText[i - 1] === newText[j - 1]) {
+            i--;
+            j--;
+        }
+        else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            ops.push({ type: 'insert', pos: i, text: newText[j - 1] });
+            j--;
+        }
+        else {
+            ops.push({ type: 'delete', pos: i - 1, count: 1 });
+            i--;
+        }
+    }
+    return mergeOps(ops.reverse());
+}
+function mergeOps(ops) {
+    const merged = [];
+    for (const op of ops) {
+        const last = merged[merged.length - 1];
+        if (last && last.type === 'insert' && op.type === 'insert'
+            && last.pos + last.text.length === op.pos) {
+            last.text += op.text;
+        }
+        else if (last && last.type === 'delete' && op.type === 'delete'
+            && last.pos + last.count === op.pos) {
+            last.count += op.count;
+        }
+        else {
+            merged.push(Object.assign({}, op));
+        }
+    }
+    return merged;
+}
+// ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛
 // Отчёт о работе
 function workReport() {
     let missingFontsRowHeight = 0;
@@ -931,53 +1019,49 @@ function workReport() {
     }
 }
 // Запуск плагина
-function runPlugin() {
-    return __awaiter(this, void 0, void 0, function* () {
-        // Заполняем словарь Ёфикатора
-        createYoDict();
-        // Поиск текстовых узлов и применения к ним Типографа
-        yield applyTypographToTextNodes();
-        // Отчёт о работе
-        workReport();
-    });
+async function runPlugin() {
+    // Заполняем словарь Ёфикатора
+    createYoDict();
+    // Поиск текстовых узлов и применения к ним Типографа
+    await applyTypographToTextNodes();
+    // Отчёт о работе
+    workReport();
 }
 ;
 // Запуск настроек плагина
 function runSettings() {
     // Отправляем настройки в UI
-    figma.showUI(__html__, { width: 340, height: 230 });
+    figma.showUI(__html__, { width: 340, height: 300 });
     figma.ui.postMessage({ action: "settings", data: settingsValuesLocal });
 }
 ;
 // Сохраняем переданные из UI настройки
-function saveSettings(settingsValues) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield figma.clientStorage.setAsync('settings', settingsValues);
-    });
+async function saveSettings(settingsValues) {
+    await figma.clientStorage.setAsync('settings', settingsValues);
 }
 ;
-(() => __awaiter(void 0, void 0, void 0, function* () {
-    yield initSettings();
+(async () => {
+    await initSettings();
     switch (figma.command) {
         case "run": // Если в меню выбрано "SBOL Typograph"
-            yield runPlugin();
+            await runPlugin();
             break;
         case "settings": // Если в меню выбрано "⚙️ Настройки"
             runSettings();
             break;
     }
-}))();
+})();
 // Передаём из ui.html сообщения о действии
-figma.ui.onmessage = (message) => __awaiter(void 0, void 0, void 0, function* () {
+figma.ui.onmessage = async (message) => {
     switch (message.action) {
         case "closePlugin": // Закрыть плагин
             figma.closePlugin();
             break;
         case "saveSettings": // Сохранение настроек
-            yield saveSettings(message.settingsData);
+            await saveSettings(message.settingsData);
             break;
     }
-});
+};
 /*
 U+00A0		Неразрывный пробел  no-break space
 U+0020  	Пробел  space

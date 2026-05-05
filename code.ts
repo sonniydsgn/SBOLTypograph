@@ -22,6 +22,7 @@ let settingsValuesLocal: { [key: string]: boolean } = {
   quotemarks: true,
   phone: true,
   showresult: true,
+  savestyles: true,
 };
 
 // Инициализация настроек плагина
@@ -951,29 +952,149 @@ async function applyTypographToTextNodes() {
   const textNodes = findTextNodes();
 
   await Promise.all(textNodes.map(async (node) => {
-    // Если в узле нет отсутствующих шрифтов
-    if (!node.hasMissingFont) {
-      // Применяем к текстовому узлу Типограф
-      const typographResult: string = applyTypograph(node.characters);
-      // Если Типограф что-то исправил
-      if (node.characters !== typographResult) {
-        try {
-          // Загружаем шрифты текстового узла
-          await Promise.all(
-            node.getRangeAllFontNames(0, node.characters.length)
-              .map(figma.loadFontAsync)
-          );
+    // Если в узле есть отсутствующие шрифты
+    if (node.hasMissingFont) {
+      _counterMissingFont++;
+      return;
+    }
+
+    const originalText = node.characters;
+    const typographResult: string = applyTypograph(node.characters);
+
+    // Если Типограф ничего не исправил
+    if (originalText === typographResult) return;
+
+    try {
+      if (node.fontName !== figma.mixed) {
+        // В текстовом узле один стиль
+        await figma.loadFontAsync(node.fontName);
+        node.characters = typographResult;
+      } else {
+        // В текстовом узле несколько стилей
+        await Promise.all(
+          node.getRangeAllFontNames(0, originalText.length)
+            .map(figma.loadFontAsync)
+        );
+        // Если нужно сохранять стили
+        if (settingsValuesLocal["savestyles"]) {
+          await applyTextChangesPreservingStyles(node, originalText, typographResult);
+        } else {
           node.characters = typographResult;
-        } catch (error) {
-          console.error("Не удалось загрузить шрифты:", error);
         }
       }
-    } else {
-      _counterMissingFont++;
+    } catch (error) {
+      console.error("Не удалось загрузить шрифты:", error);
     }
   }));
 }
 
+// ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛ Схранение текстовых стилей ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛
+// ⁛⁛⁛⁛⁛⁛ Автор кода Alexey Kalinin sonniydsgn https://github.com/sonniydsgn ⁛⁛⁛⁛⁛⁛
+// ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛
+/**
+ * Применяет изменения текста через insertCharacters/deleteCharacters
+ * вместо node.characters = ... чтобы сохранить стили
+ */
+async function applyTextChangesPreservingStyles(
+  node: TextNode,
+  oldText: string,
+  newText: string
+): Promise<void> {
+  // Вычисляем diff — список операций DELETE и INSERT
+  const ops = computeDiff(oldText, newText);
+
+  // Применяем операции с конца, чтобы не сбивать позиции
+  let offset = 0;
+  for (const op of ops) {
+    if (op.type === 'delete') {
+      node.deleteCharacters(op.pos + offset, op.pos + offset + op.count);
+      offset -= op.count;
+    } else if (op.type === 'insert') {
+      // Берём стиль из соседнего символа справа (или слева если вставка в конец)
+      node.insertCharacters(op.pos + offset, op.text, 'BEFORE');
+      offset += op.text.length;
+    }
+  }
+}
+
+type DiffOp =
+  | { type: 'delete'; pos: number; count: number }
+  | { type: 'insert'; pos: number; text: string };
+
+function computeDiff(oldText: string, newText: string): DiffOp[] {
+  const oldLen = oldText.length;
+  const newLen = newText.length;
+
+  // Строим только две строки вместо всей матрицы O(n*m) → O(m)
+  let prev = new Array(newLen + 1).fill(0);
+  let curr = new Array(newLen + 1).fill(0);
+
+  for (let i = 1; i <= oldLen; i++) {
+    for (let j = 1; j <= newLen; j++) {
+      curr[j] = oldText[i - 1] === newText[j - 1]
+        ? prev[j - 1] + 1
+        : Math.max(prev[j], curr[j - 1]);
+    }
+    [prev, curr] = [curr, prev];
+    curr.fill(0);
+  }
+
+  // Для обратного прохода нужна вся матрица — храним только нужные строки.
+  // Перестраиваем матрицу, но теперь только для traceback.
+  // Используем экономный вариант: храним всю матрицу но Int16Array вместо number[][]
+  const dp: Int16Array[] = Array.from(
+    { length: oldLen + 1 },
+    () => new Int16Array(newLen + 1)
+  );
+  for (let i = 1; i <= oldLen; i++) {
+    for (let j = 1; j <= newLen; j++) {
+      dp[i][j] = oldText[i - 1] === newText[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+
+  // Обратный проход
+  const ops: DiffOp[] = [];
+  let i = oldLen, j = newLen;
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldText[i - 1] === newText[j - 1]) {
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.push({ type: 'insert', pos: i, text: newText[j - 1] });
+      j--;
+    } else {
+      ops.push({ type: 'delete', pos: i - 1, count: 1 });
+      i--;
+    }
+  }
+
+  return mergeOps(ops.reverse());
+}
+
+function mergeOps(ops: DiffOp[]): DiffOp[] {
+  const merged: DiffOp[] = [];
+
+  for (const op of ops) {
+    const last = merged[merged.length - 1];
+
+    if (last && last.type === 'insert' && op.type === 'insert'
+      && last.pos + last.text.length === op.pos
+    ) {
+      last.text += op.text;
+    } else if (last && last.type === 'delete' && op.type === 'delete'
+      && last.pos + last.count === op.pos
+    ) {
+      last.count += op.count;
+    } else {
+      merged.push(Object.assign({}, op));
+    }
+  }
+
+  return merged;
+}
+// ⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛⁛
 
 // Отчёт о работе
 function workReport() {
@@ -1040,7 +1161,7 @@ async function runPlugin() {
 // Запуск настроек плагина
 function runSettings() {
   // Отправляем настройки в UI
-  figma.showUI(__html__, { width: 340, height: 230 });
+  figma.showUI(__html__, { width: 340, height: 300 });
   figma.ui.postMessage({ action: "settings", data: settingsValuesLocal });
 };
 
