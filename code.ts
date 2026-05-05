@@ -948,7 +948,7 @@ function findTextNodes(): TextNode[] {
 }
 
 // Применяем к текстовым узлам Типограф
-async function applyTypographToTextNodes(preserveStyles: boolean = true) {
+async function applyTypographToTextNodes() {
   const textNodes = findTextNodes();
 
   await Promise.all(textNodes.map(async (node) => {
